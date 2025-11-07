@@ -1,30 +1,33 @@
 package main
 
 import (
-	"database/sql"
+	"context"
+	"errors"
 	"go-restapi/internal/api"
-	"go-restapi/internal/repository"
-	"go-restapi/internal/service"
 	"go-restapi/pkg/common/appmiddleware"
-	"log"
+	"go-restapi/pkg/common/logger"
+	"go-restapi/pkg/config/limiter"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"go.uber.org/zap"
 )
 
 type application struct {
-	config     config
-	db         *sql.DB
-	repository *repository.Queries
-	service    *service.Service
-	api        *api.API
+	config  config
+	api     *api.API
+	limiter limiter.Limiter
 }
 
 type config struct {
-	addr  string
-	dbCfg databaseConfig
+	addr        string
+	dbCfg       databaseConfig
+	rateLimiter limiter.Config
 }
 
 type databaseConfig struct {
@@ -40,8 +43,13 @@ func (app *application) mount() *chi.Mux {
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
 	router.Use(middleware.Recoverer)
-	router.Use(middleware.Logger)
+	// router.Use(middleware.Logger)
+	router.Use(appmiddleware.LoggerMiddleware)
 	router.Use(middleware.Timeout(60 * time.Second))
+
+	if app.config.rateLimiter.Enabled {
+		router.Use(appmiddleware.RatelimiterMiddleware(app.limiter))
+	}
 
 	router.Route("/api", func(r chi.Router) {
 		r.Get("/health", app.api.HealthCheck)
@@ -75,6 +83,33 @@ func (app *application) serve() error {
 		IdleTimeout:  time.Minute * 2,
 	}
 
-	log.Printf("server has started at %s", app.config.addr)
-	return srv.ListenAndServe()
+	shutdown := make(chan error)
+
+	go func() {
+		quit := make(chan os.Signal, 1)
+		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+		s := <-quit
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+		defer cancel()
+
+		logger.Info("signal caugh", zap.String("signal", s.String()))
+
+		shutdown <- srv.Shutdown(ctx)
+	}()
+
+	logger.Info("server has started", zap.String("addr", app.config.addr))
+
+	err := srv.ListenAndServe()
+	if !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+
+	err = <-shutdown
+	if err != nil {
+		return err
+	}
+
+	logger.Info("server has shutdown", zap.String("addr", app.config.addr))
+	return nil
 }

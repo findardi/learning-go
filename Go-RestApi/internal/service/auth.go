@@ -6,9 +6,11 @@ import (
 	"go-restapi/internal/repository"
 	"go-restapi/pkg/common"
 	formattime "go-restapi/pkg/common/format-time"
+	"go-restapi/pkg/common/logger"
 	"go-restapi/pkg/common/token"
 	"strings"
 
+	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -35,6 +37,7 @@ func (a *AuthService) comparePassword(password, hash string) bool {
 func (a *AuthService) Register(ctx context.Context, request *model.RequestUserRegister) (string, error) {
 	hash, err := a.hashPassword(request.Password)
 	if err != nil {
+		logger.Error("failed to hash password", zap.String("path", "users/register"), zap.Error(err))
 		return "", common.ErrGeneratePassword
 	}
 
@@ -48,6 +51,7 @@ func (a *AuthService) Register(ctx context.Context, request *model.RequestUserRe
 
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate") {
+			logger.Warn("duplicate request", zap.String("path", "users/register"), zap.Error(err))
 			if strings.Contains(err.Error(), "username") {
 				return "", common.ErrDuplicateUsername
 			}
@@ -55,6 +59,7 @@ func (a *AuthService) Register(ctx context.Context, request *model.RequestUserRe
 				return "", common.ErrDuplicateEmail
 			}
 		}
+		logger.Error("failed to insert user", zap.String("path", "users/register"), zap.Error(err))
 		return "", err
 	}
 
@@ -67,6 +72,7 @@ func (a *AuthService) Login(ctx context.Context, request *model.RequestUserLogin
 		if strings.Contains(err.Error(), "no rows") {
 			return nil, common.ErrInvalidCredentials
 		}
+		logger.Error("failed to get user by email", zap.String("path", "users/login"), zap.Error(err))
 		return nil, err
 	}
 
@@ -77,6 +83,7 @@ func (a *AuthService) Login(ctx context.Context, request *model.RequestUserLogin
 
 	validToken, err := token.GenerateToken(user.ID, user.Username, "USER")
 	if err != nil {
+		logger.Error("failed to generate token", zap.String("path", "users/login"), zap.Error(err))
 		return nil, err
 	}
 

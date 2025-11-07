@@ -2,8 +2,11 @@ package common
 
 import (
 	"encoding/json"
+	"go-restapi/pkg/common/logger"
 	"net/http"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type SuccessResponse struct {
@@ -66,9 +69,20 @@ func RespondWithSuccess(w http.ResponseWriter, message string, data any) error {
 func RespondWithError(w http.ResponseWriter, err error) error {
 	statusCode := GetErrorStatusCode(err)
 	message := GetErrorMessages[statusCode]
+
 	return ErrorResponseJSON(w, statusCode, message, err.Error())
 }
 
 func RespondWithCustomError(w http.ResponseWriter, status int, message string, errors any) error {
 	return ErrorResponseJSON(w, status, message, errors)
+}
+
+func RespondExcededError(w http.ResponseWriter, r *http.Request, retryAfter string) error {
+	logger.Warn("rate limited exceded", zap.String("method", r.Method), zap.String("path", r.URL.Path))
+
+	w.Header().Set("Retry-After", retryAfter)
+
+	status := http.StatusTooManyRequests
+	message := GetErrorMessages[status]
+	return ErrorResponseJSON(w, status, message, "rate limiter exceded, retry after"+retryAfter)
 }

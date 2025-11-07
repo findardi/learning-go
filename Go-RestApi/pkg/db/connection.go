@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"go-restapi/pkg/common/logger"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -29,6 +30,8 @@ func New(addr string, maxOpenCons, maxIdleCons int, maxIdleTime string) (*sql.DB
 	if err := db.PingContext(ctx); err != nil {
 		return nil, err
 	}
+
+	logger.Info("database connected...")
 
 	return db, nil
 }

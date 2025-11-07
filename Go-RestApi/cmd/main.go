@@ -5,8 +5,11 @@ import (
 	"go-restapi/internal/repository"
 	"go-restapi/internal/service"
 	"go-restapi/pkg/common"
+	"go-restapi/pkg/common/logger"
+	"go-restapi/pkg/config/limiter"
 	"go-restapi/pkg/db"
 	"log"
+	"time"
 )
 
 func main() {
@@ -18,7 +21,14 @@ func main() {
 			maxIdleCons: common.GetInt("DB_MAX_IDLE", 30),
 			maxIdleTime: common.GetString("DB_TIME_IDLE", "15m"),
 		},
+		rateLimiter: limiter.Config{
+			RequestPerTimeFrame: 100,
+			TimeFrame:           time.Minute,
+			Enabled:             true,
+		},
 	}
+
+	defer logger.Sync()
 
 	db, err := db.New(
 		config.dbCfg.dbUrl,
@@ -26,18 +36,18 @@ func main() {
 		config.dbCfg.maxIdleCons,
 		config.dbCfg.maxIdleTime)
 	if err != nil {
-		log.Panic(err)
+		logger.Fatal(err.Error())
 	}
 
 	repo := repository.New(db)
 	service := service.New(repo)
 	api := api.NewAPI(service)
+	ratelimiter := limiter.NewFixedWindowRateLimiter(config.rateLimiter.RequestPerTimeFrame, config.rateLimiter.TimeFrame)
 
 	app := &application{
 		config:  config,
-		db:      db,
-		service: service,
 		api:     api,
+		limiter: ratelimiter,
 	}
 
 	log.Fatal(app.serve())

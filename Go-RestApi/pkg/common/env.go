@@ -6,16 +6,16 @@ import (
 )
 
 func GetString(key, fallback string) string {
-	value, ok := os.LookupEnv(key)
-	if !ok {
+	value := os.Getenv(key)
+	if value == "" {
 		return fallback
 	}
 	return value
 }
 
 func GetInt(key string, fallback int) int {
-	value, ok := os.LookupEnv(key)
-	if !ok {
+	value := os.Getenv(key)
+	if value == "" {
 		return fallback
 	}
 

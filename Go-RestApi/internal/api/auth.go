@@ -4,7 +4,10 @@ import (
 	"go-restapi/internal/model"
 	"go-restapi/internal/service"
 	"go-restapi/pkg/common"
+	"go-restapi/pkg/common/logger"
 	"net/http"
+
+	"go.uber.org/zap"
 )
 
 type AuthAPI struct {
@@ -21,6 +24,7 @@ func (a *AuthAPI) Register(w http.ResponseWriter, r *http.Request) {
 	var request model.RequestUserRegister
 
 	if err := common.ReadJSON(r, &request); err != nil {
+		logger.Warn("Invalid JSON Format", zap.Error(err))
 		common.ErrorResponseJSON(w, http.StatusBadRequest, "Invalid JSON Format", err.Error())
 		return
 	}
@@ -43,6 +47,7 @@ func (a *AuthAPI) Login(w http.ResponseWriter, r *http.Request) {
 	var request model.RequestUserLogin
 
 	if err := common.ReadJSON(r, &request); err != nil {
+		logger.Warn("Invalid JSON Format", zap.Error(err))
 		common.ErrorResponseJSON(w, http.StatusBadRequest, "Invalid JSON Format", err.Error())
 		return
 	}

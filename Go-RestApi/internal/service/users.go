@@ -6,6 +6,9 @@ import (
 	"go-restapi/internal/repository"
 	"go-restapi/pkg/common/appmiddleware"
 	formattime "go-restapi/pkg/common/format-time"
+	"go-restapi/pkg/common/logger"
+
+	"go.uber.org/zap"
 )
 
 type UserService struct {
@@ -21,11 +24,13 @@ func NewUserService(repo *repository.Queries) *UserService {
 func (u *UserService) Profile(ctx context.Context) (*model.ResponseUser, error) {
 	payload, err := appmiddleware.GetUserFromContext(ctx)
 	if err != nil {
+		logger.Error("failed to get user from context", zap.String("path", "users/profile"), zap.Error(err))
 		return nil, err
 	}
 
 	result, err := u.repo.UserGetByID(ctx, payload.UserID)
 	if err != nil {
+		logger.Error("failed to get user by id", zap.String("path", "users/profile"), zap.Error(err))
 		return nil, err
 	}
 
